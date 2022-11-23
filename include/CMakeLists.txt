@@ -1,0 +1,1 @@
+target_include_directories(BoneServer PRIVATE ${CMAKE_CURRENT_LIST_DIR})

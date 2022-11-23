@@ -1,0 +1,5 @@
+target_sources(BoneServer PRIVATE "main.c" "Message.c")
+target_sources(Client PRIVATE "Client.c")
+target_sources(FFTProcess PRIVATE "FFT.c")
+target_sources(Convolution PRIVATE "Convolution.c")
+target_sources(ImageIdentification PRIVATE "ImageIdentification.c")
