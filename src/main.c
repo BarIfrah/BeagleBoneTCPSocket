@@ -15,14 +15,25 @@
 #include <sys/shm.h>
 #include <semaphore.h>
 
+#include <sys/wait.h>   /* Wait for Process Termination */
+#include <termios.h>
+
 #include "Message.h"
 
 //---Defines------------------------------------------------------------------------------------------------------------
+/// UART Usage
+#define SERIAL_DEVFILE_1 "/dev/ttyS1"
+#define SERIAL_DEVFILE_2 "/dev/ttyS2"
+
+
 const int flattenImageLen = 1024; //(bytes)
 const int sharedMemSize = 50;
 //---Globals------------------------------------------------------------------------------------------------------------
 int tcpSocket, aTrue = 1;
 struct sockaddr_in serverAddr, clientAddr;
+
+int uartTcpSocket, uartTrue = 1;
+struct sockaddr_in uartServerAddr, uartClientAddr;
 int imagesInArr = 50;
 //
 
@@ -33,7 +44,10 @@ void terminate(char *);
 bool insertImageToShmem(Message *shmemPtr, const char *message);
 bool userChooseQuit(char *);
 void buildShmemArray(Message *shmemPtr);
+
 bool sendToUart(char *);
+void configSerial(int );
+int sendMessageOverUart(char *);
 //----------------------------------------------------------------------------------------------------------------------
 int main() {
 
@@ -46,14 +60,11 @@ int main() {
     int shmId;
     key_t key = 5678;     // shmem key (use ftok()?
     struct Message *shmemPtr;
-/// Reset struct obj
-//    Message m = {.message = "hello", .imageIdentification = "cat", .isConv = false, .isFFT = false, .isReady = false};
-//    m = (const struct Message) { 0 };
-/// End example
-
+    ///set shared mem
     shmId = openSharedMemory(key);
     shmemPtr = openShmPtr(shmId);
     buildShmemArray(shmemPtr);
+
     setUpSocket();
 
     sin_size = sizeof(struct sockaddr_in);
@@ -200,8 +211,84 @@ void buildShmemArray(Message *shmemPtr) {
     }
 }
 //----------------------------------------------------------------------------------------------------------------------
+//---UART Logic---------------------------------------------------------------------------------------------------------
 bool sendToUart(char *message){
-    ///TODO: fill UART DATA
-    printf("sent to UART\n");
+    sendMessageOverUart(message);
     return true;
 }
+//----------------------------------------------------------------------------------------------------------------------
+int sendMessageOverUart(char *message){
+    int ret, fd_serial1,fd_serial2;
+    struct termios options;
+    int n;
+    char tx_buff[255];
+    char rx_buff[255];
+
+    //configure the pins for UART
+    printf("we need to configure the pins to UART\n");
+    printf("config-pin p9-22 uart\n");
+    printf("config-pin p9-24 uart\n");
+
+    // initialize serial connection
+    printf(" initialize serial file descriptors\n");
+
+    /* Open Ports */
+    fd_serial1 = open(SERIAL_DEVFILE_1, O_RDWR | O_NOCTTY | O_NDELAY);  /* <--- serial port 1 */
+    if(fd_serial1 == -1) {
+        printf("ERROR Open Serial Port 1!");
+        exit(-1);
+    }
+
+    fd_serial2 = open(SERIAL_DEVFILE_2, O_RDWR | O_NOCTTY | O_NDELAY);  /* <--- serial port 2 */
+    if(fd_serial1 == -1) {
+        printf("ERROR Open Serial Port 2!");
+        exit(-1);
+    }
+
+    // Serial Configuration
+    configSerial(fd_serial1);
+    configSerial(fd_serial2);
+
+    //writing tx-buffer to serial port
+    strcpy(tx_buff,"YOUR COMMAND STRING HERE \n");
+    ret = write(fd_serial1,tx_buff,strlen(tx_buff) );
+    if (ret == -1) {
+        perror("Error writing to device");
+        exit(EXIT_FAILURE);
+    }
+
+    sleep(1); //wait for HW to write to device
+
+    //reading serial port into rx-buffer
+    ret = read(fd_serial2,rx_buff,strlen(tx_buff) );
+    if (ret == -1) {
+        perror("Error writing to device");
+        exit(EXIT_FAILURE);
+    }
+    printf("ret=%d %s \n",ret,rx_buff);
+    close(fd_serial1); // Close Port
+    close(fd_serial2); // Close Port
+}
+//----------------------------------------------------------------------------------------------------------------------
+void configSerial(int fd_serial){
+    struct termios options;
+
+    tcgetattr(fd_serial, &options);   // Get Current Config
+    cfsetispeed(&options, B9600);     // Set Baud Rate
+    cfsetospeed(&options, B9600);
+    options.c_cflag = (options.c_cflag & ~CSIZE) | CS8;
+    options.c_iflag =  IGNBRK;
+    options.c_lflag = 0;
+    options.c_oflag = 0;
+    options.c_cflag |= CLOCAL | CREAD;
+    options.c_cc[VMIN] = 1;
+    options.c_cc[VTIME] = 5;
+    options.c_iflag &= ~(IXON|IXOFF|IXANY);
+    options.c_cflag &= ~(PARENB | PARODD);
+
+    /* Save The Configuration */
+    tcsetattr(fd_serial, TCSANOW, &options);
+    /* Flush the input (read) buffer */
+    tcflush(fd_serial,TCIOFLUSH);
+}
+//----------------------------------------------------------------------------------------------------------------------
