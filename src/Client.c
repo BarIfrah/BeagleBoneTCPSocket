@@ -1,23 +1,3 @@
-/*
-lesson 12-2
-file name: domain_tcp_socket_client,
-this file is part of a program that illustrates the usage of Connection Oriented Domain Sockets
-
- Description
- -----------
- The program requires 2 files:
- domain_tcp_socket_server
- domain_tcp_socket_client (THIS ONE)
-
- the Client side creates a Domain socket and starts wrting to the server
- loop-back (127.0.0.1) is used for Internet Addressing
- the server part should run before the client
-
-
-
-To compile me for Linux, use gcc -ggdb domain_tcp_socket_client.c -o tcp_socket_client
-To execute, type:  ./tcp_socket_client
-*/
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -30,18 +10,52 @@ To execute, type:  ./tcp_socket_client
 #include <errno.h>
 
 
-int main()
+//---Defines------------------------------------------------------------------------------------------------------------
+const int flattenImageLen = 1000; //(bytes)
+//---Globals------------------------------------------------------------------------------------------------------------
+struct hostent *host;
+struct sockaddr_in server_addr;
+int tcpSocket;
+//---Declarations-------------------------------------------------------------------------------------------------------
+void connectToSocket();
+//----------------------------------------------------------------------------------------------------------------------
+int main(){
+    long bytesReceived;
+    char sendData[flattenImageLen], recvData[flattenImageLen];
 
-{
+    connectToSocket();
 
-    int sock, bytes_recieved;
-    char send_data[1024],recv_data[1024];
-    struct hostent *host;
-    struct sockaddr_in server_addr;
+    while(1){
+        bytesReceived = recv(tcpSocket, recvData, flattenImageLen, 0);
+        recvData[bytesReceived] = '\0';
 
-    host = gethostbyname("127.0.0.1");
+        if (strcmp(recvData , "q") == 0 || strcmp(recvData , "Q") == 0){
+            close(tcpSocket);
+            break;
+        } else{
+            printf("\nReceived data = %s " , recvData);
+        }
 
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+        printf("\nSEND (q or Q to quit) : ");
+        scanf(" %[^\n]s", sendData);
+
+        if (strcmp(sendData , "q") != 0 && strcmp(sendData , "Q") != 0){
+            send(tcpSocket, sendData, strlen(sendData), 0);
+        }else{
+            send(tcpSocket, sendData, strlen(sendData), 0);
+            close(tcpSocket);
+            break;
+        }
+
+    }
+    return 0;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+void connectToSocket(){
+    host = gethostbyname("127.0.0.1");   ///TODO: get in agrv[]
+
+    if ((tcpSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
         perror("Socket");
         exit(1);
@@ -52,43 +66,9 @@ int main()
     server_addr.sin_addr = *((struct in_addr *)host->h_addr);
     bzero(&(server_addr.sin_zero),8);
 
-    if (connect(sock, (struct sockaddr *)&server_addr,
-                sizeof(struct sockaddr)) == -1)
-    {
+    if (connect(tcpSocket, (struct sockaddr *)&server_addr, sizeof(struct sockaddr)) == -1) {
         perror("Connect");
         exit(1);
     }
-
-    while(1)
-    {
-
-        bytes_recieved=recv(sock,recv_data,1024,0);
-        recv_data[bytes_recieved] = '\0';
-
-        if (strcmp(recv_data , "q") == 0 || strcmp(recv_data , "Q") == 0)
-        {
-            close(sock);
-            break;
-        }
-        else
-        {
-            printf("\nRecieved data = %s " , recv_data);
-        }
-
-        printf("\nSEND (q or Q to quit) : ");
-        gets(send_data);
-
-        if (strcmp(send_data , "q") != 0 && strcmp(send_data , "Q") != 0)
-        {
-            send(sock,send_data,strlen(send_data), 0);
-        }
-        else
-        {
-            send(sock,send_data,strlen(send_data), 0);
-            close(sock);
-            break;
-        }
-
-    }
-    return 0;
 }
+//----------------------------------------------------------------------------------------------------------------------

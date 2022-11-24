@@ -1,4 +1,5 @@
 #include <stdbool.h>
+
 typedef struct Message{
     char message[1000];
     bool isReady;

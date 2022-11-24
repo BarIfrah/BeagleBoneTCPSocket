@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <ctype.h>
 
 #include <fcntl.h>           /* For O_* constants */
 #include <sys/stat.h>        /* For mode constants */
@@ -17,7 +18,7 @@
 #include "Message.h"
 
 //---Defines------------------------------------------------------------------------------------------------------------
-const int flattenImageLen = 1000; //(bytes)
+const int flattenImageLen = 1024; //(bytes)
 const int sharedMemSize = 50;
 //---Globals------------------------------------------------------------------------------------------------------------
 int tcpSocket, aTrue = 1;
@@ -26,27 +27,38 @@ int imagesInArr = 50;
 //---Declarations-------------------------------------------------------------------------------------------------------
 void setUpSocket();
 int open_shared_memory(key_t);
-int *open_shm_ptr(int);
+struct Message * openShmPtr(int shmId);
 void terminate(char *);
-bool insertImageToShmem(int *, Message);
+bool insertImageToShmem(Message *shmemPtr, const char *message);
+bool userChooseQuit(char *);
+void buildShmemArray(Message *, int);
 //----------------------------------------------------------------------------------------------------------------------
 int main() {
 
     int connected;
-    long bytesRecieved;
-    char sendData [1000] , recvData[1000];
+    long bytesReceived;
+    char sendData [flattenImageLen] , recvData[flattenImageLen];
     socklen_t sin_size;
+
 
     int shmId;
     key_t key = 5678;     // shmem key (use ftok()?
-    int *shmemPtr;
+    struct Message *shmemPtr;
+/// Reset struct obj
+//    Message m = {.message = "hello", .imageIdentification = "cat", .isConv = false, .isFFT = false, .isReady = false};
+//    m = (const struct Message) { 0 };
+/// End example
 
     shmId = open_shared_memory(key);
-    shmemPtr = open_shm_ptr(shmId);
-
+    shmemPtr = openShmPtr(shmId);
+    buildShmemArray(shmemPtr, shmId);
     setUpSocket();
 
+    printf("%lu", sizeof(struct sockaddr));
+
     sin_size = sizeof(struct sockaddr_in);
+
+    printf("%u", sin_size);
 
     connected = accept(tcpSocket, (struct sockaddr *)&clientAddr, &sin_size);
 
@@ -56,10 +68,9 @@ int main() {
     while (1)
     {
         printf("\n SEND (q or Q to quit) : ");
-        gets(sendData);
+        scanf(" %[^\n]s", sendData);
 
-        if (strcmp(sendData , "q") == 0 || strcmp(sendData , "Q") == 0)
-        {
+        if (userChooseQuit(sendData)){
             send(connected, sendData, strlen(sendData), 0);
             close(connected);
             break;
@@ -67,18 +78,25 @@ int main() {
         else
             send(connected, sendData, strlen(sendData), 0);
 
-        bytesRecieved = recv(connected, recvData, 1024, 0);
+        bytesReceived = recv(connected, recvData, flattenImageLen, 0);
 
-        recvData[bytesRecieved] = '\0';
+        recvData[bytesReceived] = '\0';
 
-        if (strcmp(recvData , "q") == 0 || strcmp(recvData , "Q") == 0)
-        {
+        if (userChooseQuit(recvData)){
             close(connected);
             break;
         }
         else
         {
-            printf("\n RECIEVED DATA = %s " , recvData);
+            printf("\n RECEIVED DATA = %s " , recvData);
+            if (!insertImageToShmem(shmemPtr, recvData)){
+                /// SHMEM full
+                ///TODO send msg & sleep
+            } else{
+                ///TODO: fft, id, cnlv logic
+
+                ///TODO: remove logic
+            }
             fflush(stdout);
         }
     }
@@ -92,16 +110,10 @@ void setUpSocket(){
         perror("Socket");
         exit(1);
     }
-
-    //set the socket options -
-    // SO_REUSEADDR - option to allow socket to be be opened on the same port on the machine.
-    //                useful when recovering from a crash and the socket was not properly closed -
-    //                app can be restarted and it will simply open another socket on the same port
     if (setsockopt(tcpSocket, SOL_SOCKET, SO_REUSEADDR, &aTrue, sizeof(int)) == -1) {
         perror("Setsockopt");
         exit(1);
     }
-
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(5000);          ///port - will get in argv later
     serverAddr.sin_addr.s_addr = INADDR_ANY;
@@ -138,21 +150,44 @@ int open_shared_memory(key_t key){
 }
 //----------------------------------------------------------------------------------------------------------------------
 // opens and returns a pointer
-int *open_shm_ptr(int shm_id){
-    int *shmem_ptr;
-    shmem_ptr = (int*) shmat(shm_id, NULL, 0);
-    if (shmem_ptr == (int*) -1) {
+struct Message * openShmPtr(int shmId){
+    Message *shmemPtr;
+    shmemPtr = (struct Message *) shmat(shmId, NULL, 0);
+    if (shmemPtr == (struct Message *) -1) {
         terminate("shmat failed\n");
     }
-    return shmem_ptr;
+    return shmemPtr;
 }
 //----------------------------------------------------------------------------------------------------------------------
-bool insertImageToShmem(int *shmemPtr, Message message){
+/* Gets ptr and char *, builds struct Message object into shared mem.
+ * checks if "ready" means that the message that was there was ready and handled earlier. if so - can be deleted.
+ *
+ */
+bool insertImageToShmem(Message *shmemPtr, const char *message){
+
     for (int i = 0; i < imagesInArr; ++i) {
-        if (shmemPtr[i] == NULL) {
-            shmemPtr[i] = message; //malloc?
-            return false;
+        if (shmemPtr[i].isReady) {
+            ///TODO: func later
+            strcpy(shmemPtr[i].message, message);
+            shmemPtr[i].isFFT = false;
+            shmemPtr[i].isConv = false;
+            shmemPtr[i].isReady = false;
+            return true;
         }
     }
-    return true;
+    return false;
+}
+//----------------------------------------------------------------------------------------------------------------------
+bool userChooseQuit(char *data){
+    if (strcmp(data , "q") == 0 || strcmp(data , "Q") == 0)
+        return true;
+    return false;
+}
+//----------------------------------------------------------------------------------------------------------------------
+// builds the randomized array
+void buildShmemArray(Message *shmemPtr, int shmemId){
+    for (int i = 0; i < sharedMemSize; ++i) {
+        shmemPtr[i] = (const struct Message) { 0 };
+        shmemPtr[i].isReady = true;
+    }
 }

@@ -1,1 +1,5 @@
 target_include_directories(BoneServer PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories(ImageIdentification PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories(Convolution PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories(FFTProcess PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories(Client PRIVATE ${CMAKE_CURRENT_LIST_DIR})
