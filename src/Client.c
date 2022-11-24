@@ -11,7 +11,7 @@
 
 
 //---Defines------------------------------------------------------------------------------------------------------------
-const int flattenImageLen = 1000; //(bytes)
+const int flattenImageLen1 = 1024; //(bytes)
 //---Globals------------------------------------------------------------------------------------------------------------
 struct hostent *host;
 struct sockaddr_in server_addr;
@@ -21,20 +21,24 @@ void connectToSocket();
 //----------------------------------------------------------------------------------------------------------------------
 int main(){
     long bytesReceived;
-    char sendData[flattenImageLen], recvData[flattenImageLen];
+    char sendData[flattenImageLen1], recvData[flattenImageLen1];
 
     connectToSocket();
 
-    while(1){
-        bytesReceived = recv(tcpSocket, recvData, flattenImageLen, 0);
-        recvData[bytesReceived] = '\0';
+    bytesReceived = recv(tcpSocket, recvData, flattenImageLen1, 0);
+    recvData[bytesReceived] = '\0';
+    printf("\nReceived data = %s " , recvData);
 
-        if (strcmp(recvData , "q") == 0 || strcmp(recvData , "Q") == 0){
-            close(tcpSocket);
-            break;
-        } else{
-            printf("\nReceived data = %s " , recvData);
-        }
+    while(1){
+        bytesReceived = recv(tcpSocket, recvData, flattenImageLen1, 0);
+        recvData[bytesReceived] = '\0';
+        printf("\nReceived data = %s " , recvData);
+
+//        if (strcmp(recvData , "q") == 0 || strcmp(recvData , "Q") == 0){
+//            close(tcpSocket);
+//            break;
+//        } else{
+//        }
 
         printf("\nSEND (q or Q to quit) : ");
         scanf(" %[^\n]s", sendData);
@@ -46,7 +50,10 @@ int main(){
             close(tcpSocket);
             break;
         }
-
+        sleep(1); ///sleep 1s after sending image
+//        bytesReceived = recv(tcpSocket, recvData, flattenImageLen1, 0);
+//        recvData[bytesReceived] = '\0';
+//        printf("\nReceived data = %s " , recvData);
     }
     return 0;
 }

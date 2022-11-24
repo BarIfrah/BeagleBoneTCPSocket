@@ -1,10 +1,12 @@
-////
-//// Created by Bar Ifrah on 23/11/2022.
-////
-//
-//#ifndef BONESERVER_FFT_H
-//#define BONESERVER_FFT_H
-//
-//#endif //BONESERVER_FFT_H
-//
-//#pragma once
+
+#ifndef FFTPROCESS_H
+#define FFTPROCESS_H
+
+#include "SharedMemClient.h"
+
+bool locateImageToProcess(Message *);
+void processImage(Message *);
+
+#endif //FFTPROCESS_H
+
+

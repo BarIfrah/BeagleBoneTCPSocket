@@ -1,3 +1,4 @@
+
 #include <stdbool.h>
 
 typedef struct Message{
@@ -5,6 +6,7 @@ typedef struct Message{
     bool isReady;
     bool isConv;
     bool isFFT;
+    bool canWorkOn;
     char imageIdentification[20];
 }Message;
 

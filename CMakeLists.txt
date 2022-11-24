@@ -6,7 +6,9 @@ set(CMAKE_C_STANDARD 99)
 
 add_executable(BoneServer src/main.c)
 add_executable(Client src/Client.c)
+
 add_executable(FFTProcess src/FFT.c)
+
 add_executable(Convolution src/Convolution.c)
 add_executable(ImageIdentification src/ImageIdentification.c)
 

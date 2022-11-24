@@ -24,14 +24,16 @@ const int sharedMemSize = 50;
 int tcpSocket, aTrue = 1;
 struct sockaddr_in serverAddr, clientAddr;
 int imagesInArr = 50;
-//---Declarations-------------------------------------------------------------------------------------------------------
+//
+
 void setUpSocket();
-int open_shared_memory(key_t);
+int openSharedMemory(key_t);
 struct Message * openShmPtr(int shmId);
 void terminate(char *);
 bool insertImageToShmem(Message *shmemPtr, const char *message);
 bool userChooseQuit(char *);
-void buildShmemArray(Message *, int);
+void buildShmemArray(Message *shmemPtr);
+bool sendToUart(char *);
 //----------------------------------------------------------------------------------------------------------------------
 int main() {
 
@@ -49,34 +51,30 @@ int main() {
 //    m = (const struct Message) { 0 };
 /// End example
 
-    shmId = open_shared_memory(key);
+    shmId = openSharedMemory(key);
     shmemPtr = openShmPtr(shmId);
-    buildShmemArray(shmemPtr, shmId);
+    buildShmemArray(shmemPtr);
     setUpSocket();
 
-    printf("%lu", sizeof(struct sockaddr));
-
     sin_size = sizeof(struct sockaddr_in);
-
-    printf("%u", sin_size);
 
     connected = accept(tcpSocket, (struct sockaddr *)&clientAddr, &sin_size);
 
     printf("\n I got a connection from (%s , %d)",
            inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
+    strcpy(sendData, "Hello from server\n");
+    send(connected, sendData, strlen(sendData), 0);
+    sleep(1);
+    while (1) {
+        send(connected, "insert image as 1Kb str:\n", strlen("insert image as 1Kb str:\n"), 0);
+//        printf("\n SEND (q or Q to quit) : ");
+//        scanf(" %[^\n]s", sendData);
 
-    while (1)
-    {
-        printf("\n SEND (q or Q to quit) : ");
-        scanf(" %[^\n]s", sendData);
-
-        if (userChooseQuit(sendData)){
-            send(connected, sendData, strlen(sendData), 0);
-            close(connected);
-            break;
-        }
-        else
-            send(connected, sendData, strlen(sendData), 0);
+//        if (userChooseQuit(sendData)){
+//            send(connected, sendData, strlen(sendData), 0);
+//            close(connected);
+//            break;
+//        }
 
         bytesReceived = recv(connected, recvData, flattenImageLen, 0);
 
@@ -88,19 +86,28 @@ int main() {
         }
         else
         {
-            printf("\n RECEIVED DATA = %s " , recvData);
-            if (!insertImageToShmem(shmemPtr, recvData)){
-                /// SHMEM full
-                ///TODO send msg & sleep
+            printf("\n RECEIVED DATA = %s\n" , recvData);
+            if (insertImageToShmem(shmemPtr, recvData)){
+                printf("inserted img to shmem\n");
+//                sleep(5);
             } else{
-                ///TODO: fft, id, cnlv logic
 
-                ///TODO: remove logic
+                ///TODO: fft, id, cnlv logic
+                for (int i = 0; i < sharedMemSize; ++i) {
+                    if (shmemPtr[i].isReady){
+                        if (sendToUart(shmemPtr[i].message)) {
+                            shmemPtr[i] = (const struct Message) {0};
+                            printf("going to sleep\n");
+                            sleep(1);
+                            break;
+                        }
+                    }
+                }
             }
             fflush(stdout);
         }
     }
-
+    ///TODO: close shared memory
     close(tcpSocket);
     return 0;
 }
@@ -140,7 +147,7 @@ void terminate(char *error_message){
 }
 //----------------------------------------------------------------------------------------------------------------------
 // opens the shared memory for the program
-int open_shared_memory(key_t key){
+int openSharedMemory(key_t key){
     int shm_id;
     shm_id = shmget (key, sharedMemSize * sizeof (Message), IPC_CREAT | IPC_EXCL | 0666) ;
     if (shm_id == -1){
@@ -165,13 +172,14 @@ struct Message * openShmPtr(int shmId){
  */
 bool insertImageToShmem(Message *shmemPtr, const char *message){
 
-    for (int i = 0; i < imagesInArr; ++i) {
+    for (int i = 0; i < sharedMemSize; ++i) {
         if (shmemPtr[i].isReady) {
             ///TODO: func later
             strcpy(shmemPtr[i].message, message);
             shmemPtr[i].isFFT = false;
             shmemPtr[i].isConv = false;
             shmemPtr[i].isReady = false;
+            shmemPtr[i].canWorkOn = true;
             return true;
         }
     }
@@ -185,9 +193,15 @@ bool userChooseQuit(char *data){
 }
 //----------------------------------------------------------------------------------------------------------------------
 // builds the randomized array
-void buildShmemArray(Message *shmemPtr, int shmemId){
+void buildShmemArray(Message *shmemPtr) {
     for (int i = 0; i < sharedMemSize; ++i) {
         shmemPtr[i] = (const struct Message) { 0 };
         shmemPtr[i].isReady = true;
     }
+}
+//----------------------------------------------------------------------------------------------------------------------
+bool sendToUart(char *message){
+    ///TODO: fill UART DATA
+    printf("sent to UART\n");
+    return true;
 }
