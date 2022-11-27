@@ -21,7 +21,7 @@ The folder structure of this app is explained below:
 | **src**                       | Contains source code (.c) files.                                                              |
 | **include**                   | Contains header (.h) files.                                                                   |
 | **src/main**                  | Main code of program - creates socket, shared memory and contains project's logic.            |
-| **FFT.c / FFT.h.   **         | Calculates FFT for a given image string.                                                      |
+| **FFT.c / .h**            | Calculates FFT for a given image string.                                                      |
 | **Convolution.c / .h**        | Calculates convolution for a given image string.                                              |
 | **ImageIdentification.c / .h**| Decides what kind of image is shown for a given image string.                                 |
 | **Message.c /.h**             | Contains a struct (wrapper attributes) for a given image string.                              |
